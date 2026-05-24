@@ -18,6 +18,10 @@ import model.Hospitalization;
 import model.Patient;
 import model.User;
 
+import controller.AuthController;
+import response.Response;
+import response.StatusCode;
+
 /**
  *
  * @author jjlora
@@ -30,6 +34,8 @@ public class LoginView extends javax.swing.JFrame {
     private ArrayList<Hospitalization> hospitalizations;
     private ArrayList<Appointment> appointments;
 
+    private final AuthController authController;
+
     public LoginView() {
         initComponents();
         this.setBackground(new Color(0, 0, 0, 0));
@@ -37,6 +43,8 @@ public class LoginView extends javax.swing.JFrame {
 
         this.users = new ArrayList<>();
         this.users.add(new Administrator(0, "admin", "admin", "adnim", "admin123"));
+
+        this.authController = new AuthController();
     }
 
     /**
@@ -422,28 +430,40 @@ public class LoginView extends javax.swing.JFrame {
 
     private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
         // TODO add your handling code here:
-        User selectedUser = null;
-        for (User user : this.users) {
-            if (jTextField1.getText().equals(user.getUsername())) {
-                selectedUser = user;
-                if (selectedUser.getPassword().equals(jTextField2.getText())) {
-                    if (selectedUser instanceof Administrator ) {
-                        AdminView admin = new AdminView(selectedUser,users,hospitalizations, appointments);
-                        this.setVisible(false);
-                        admin.setVisible(true);
-                    }
-                    else if (selectedUser instanceof Doctor ) {
-                        DoctorView doctor = new DoctorView(selectedUser,(Doctor)selectedUser,users,hospitalizations,appointments);
-                        this.setVisible(false);
-                        doctor.setVisible(true);
-                    }
-                    else {
-                        PatientView patient = new PatientView(selectedUser,(Patient) selectedUser,users,appointments, hospitalizations);
-                        this.setVisible(false);
-                        patient.setVisible(true);
-                    }
-                }
+        String username = jTextField1.getText();
+        String password = jTextField2.getText();
+
+        Response<User> response = authController.login(username, password, users);
+
+        if (response.getStatus() == StatusCode.OK) {
+
+            User selectedUser = response.getData();
+
+            if (selectedUser instanceof Administrator) {
+
+                AdminView admin = new AdminView(selectedUser, users, hospitalizations, appointments);
+
+                this.setVisible(false);
+                admin.setVisible(true);
+
+            } else if (selectedUser instanceof Doctor) {
+
+                DoctorView doctor = new DoctorView(selectedUser, (Doctor) selectedUser, users, hospitalizations, appointments);
+
+                this.setVisible(false);
+                doctor.setVisible(true);
+
+            } else {
+
+                PatientView patient = new PatientView(selectedUser, (Patient) selectedUser, users, appointments, hospitalizations);
+
+                this.setVisible(false);
+                patient.setVisible(true);
             }
+
+        } else {
+
+            System.out.println(response.getMessage());
         }
 
     }//GEN-LAST:event_jButton2ActionPerformed
@@ -452,7 +472,7 @@ public class LoginView extends javax.swing.JFrame {
         String firstname = jTextField3.getText();
         String lastname = jTextField4.getText();
         long id = Long.parseLong(jTextField5.getText());
-        boolean gender = (jComboBox1.getSelectedIndex() == 0 ? null : (jComboBox1.getSelectedIndex() == 1 ));
+        boolean gender = (jComboBox1.getSelectedIndex() == 0 ? null : (jComboBox1.getSelectedIndex() == 1));
         String birth = jTextField12.getText();
         String address = jTextField11.getText();
         long phone = Long.parseLong(jTextField6.getText());
@@ -464,7 +484,7 @@ public class LoginView extends javax.swing.JFrame {
         if (comPassword.equals(password)) {
             users.add(new Patient(id, user, firstname, lastname, password, email, birthdate, gender, phone, address));
         }
-        
+
     }//GEN-LAST:event_jButton9ActionPerformed
 
     private void jTextField10ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jTextField10ActionPerformed
