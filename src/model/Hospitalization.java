@@ -2,9 +2,13 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package packagee;
+package model;
 
+import model.Patient;
+import model.Doctor;
 import java.time.LocalDate;
+import model.enums.HospitalizationStatus;
+import model.enums.RoomType;
 
 /**
  *
