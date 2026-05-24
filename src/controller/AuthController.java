@@ -1,49 +1,83 @@
 package controller;
 
-import java.util.List;
-
+import view.LoginView;
+import view.AdminView;
+import view.DoctorView;
+import view.PatientView;
 import model.User;
-import response.Response;
-import response.StatusCode;
-/**
- *
- * @author msand
- */
-public class AuthController {
+import model.Administrator;
+import model.Doctor;
+import model.Patient;
+import persistence.JsonManager;
+import utils.Response;
 
-    public Response<User> login(String username, String password, List<User> users) {
+import javax.swing.JOptionPane;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.ArrayList;
 
-        try {
+public class AuthController implements ActionListener {
+    
+    private LoginView view;
 
-            if (username == null || password == null
-                    || username.isBlank()
-                    || password.isBlank()) {
+    public AuthController(LoginView view) {
+        this.view = view;
+        initListeners();
+        // Inicializamos el controlador de registro pasándole ESTA misma vista
+        new RegisterController(this.view);
+        this.view.setVisible(true);
+    }
 
-                return new Response<>(StatusCode.BAD_REQUEST,
-                        "Usuario o contraseña vacíos",
-                        null);
-            }
+    private void initListeners() {
+        this.view.getBtnLogin().addActionListener(this);
+    }
 
-            for (User user : users) {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (e.getSource() == view.getBtnLogin()) {
+            handleLogin();
+        }
+    }
 
-                if (user.getUsername().equals(username)
-                        && user.getPassword().equals(password)) {
+    private void handleLogin() {
+        // Usando los getters exactos de tu LoginView
+        String user = view.getTxtLoginUsername().getText().trim();
+        String pass = view.getTxtLoginPassword().getText(); 
 
-                    return new Response<>(StatusCode.OK,
-                            "Inicio de sesión exitoso",
-                            user);
+        Response r = loginLogica(user, pass);
+
+        if (r.getStatusCode() == 200) {
+            view.dispose(); // Cierra la ventana de login
+        } else {
+            JOptionPane.showMessageDialog(view, r.getMessage(), "Error de Autenticación", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    public Response loginLogica(String username, String password) {
+        if (username.isEmpty() || password.isEmpty()) {
+            return new Response(400, "Por favor ingrese su usuario y contraseña.");
+        }
+
+        ArrayList<User> usuarios = JsonManager.cargarUsuarios();
+        
+        for (User u : usuarios) {
+            if (u.getUsername().equals(username) && u.getPassword().equals(password)) {
+                
+                // Navegación estricta según el rol del usuario
+                if (u instanceof Administrator) {
+                    new AdminController(new AdminView());
+                    return new Response(200, "Login Admin exitoso");
+                    
+                } else if (u instanceof Doctor) {
+                    new DoctorController(new DoctorView(), (Doctor) u, false);
+                    return new Response(200, "Login Doctor exitoso");
+                    
+                } else if (u instanceof Patient) {
+                    new PatientController(new PatientView(), (Patient) u, false);
+                    return new Response(200, "Login Patient exitoso");
                 }
             }
-
-            return new Response<>(StatusCode.UNAUTHORIZED,
-                    "Credenciales incorrectas",
-                    null);
-
-        } catch (Exception e) {
-
-            return new Response<>(StatusCode.INTERNAL_ERROR,
-                    e.getMessage(),
-                    null);
         }
+        return new Response(401, "Credenciales incorrectas o usuario no encontrado.");
     }
 }
