@@ -1,33 +1,28 @@
 package response;
 
-/**
- *
- * @author msand
- */
-public class Response<T> {
+public class Response {
 
-    private final StatusCode status;
-    private final String message;
-    private final T data;
+    private int statusCode;
+    private String message;
 
-    public Response(StatusCode status,
-                    String message,
-                    T data) {
-
-        this.status = status;
+    public Response(int statusCode, String message) {
+        this.statusCode = statusCode;
         this.message = message;
-        this.data = data;
     }
 
-    public StatusCode getStatus() {
-        return status;
+    public int getStatusCode() {
+        return statusCode;
+    }
+
+    public void setStatusCode(int statusCode) {
+        this.statusCode = statusCode;
     }
 
     public String getMessage() {
         return message;
     }
 
-    public T getData() {
-        return data;
+    public void setMessage(String message) {
+        this.message = message;
     }
 }

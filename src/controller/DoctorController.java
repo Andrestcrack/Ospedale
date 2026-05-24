@@ -5,7 +5,7 @@ import view.AdminView;
 import view.LoginView;
 import model.*;
 import persistence.JsonManager;
-import utils.Response;
+import response.Response;
 
 import javax.swing.JOptionPane;
 import javax.swing.table.DefaultTableModel;

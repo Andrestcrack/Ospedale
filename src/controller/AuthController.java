@@ -9,7 +9,7 @@ import model.Administrator;
 import model.Doctor;
 import model.Patient;
 import persistence.JsonManager;
-import utils.Response;
+import response.Response;
 
 import javax.swing.JOptionPane;
 import java.awt.event.ActionEvent;

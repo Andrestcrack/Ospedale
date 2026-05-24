@@ -4,7 +4,7 @@ import view.LoginView;
 import model.Patient;
 import model.User;
 import persistence.JsonManager;
-import utils.Response;
+import response.Response;
 
 import javax.swing.JOptionPane;
 import java.awt.event.ActionEvent;

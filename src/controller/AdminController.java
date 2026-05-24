@@ -1,6 +1,6 @@
 package controller;
 
-import utils.Response;
+import response.Response;
 import view.AdminView;
 import view.DoctorView;
 import view.PatientView;
