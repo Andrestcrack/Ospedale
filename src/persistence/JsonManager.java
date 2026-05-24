@@ -62,7 +62,7 @@ public class JsonManager {
                 }
                 obj.put("appointments", citasJson);
 
-                // NUEVO: Guardar Hospitalizaciones
+                // Guardar Hospitalizaciones
                 JSONArray hospitalizacionesJson = new JSONArray();
                 if (p.getHospitalizations() != null) {
                     for (Hospitalization h : p.getHospitalizations()) {
@@ -131,7 +131,7 @@ public class JsonManager {
                     listaRecuperada.add(new Patient(id, username, firstname, lastname, password, email, birthdate, gender, phone, address));
                     
                 } else if (type.equals("doctor")) {
-                    Specialty specialty = Specialty.valueOf(obj.getString("specialty"));
+                    Specialty specialty = mapSpecialty(obj.getString("specialty"));
                     String licenceNumber = obj.getString("licenceNumber"); 
                     String assignedOffice = obj.getString("assignedOffice");
                     listaRecuperada.add(new Doctor(id, username, firstname, lastname, password, specialty, licenceNumber, assignedOffice));
@@ -160,7 +160,7 @@ public class JsonManager {
                             String reason = citaObj.getString("reason");
                             boolean citaType = citaObj.getBoolean("type");
                             
-                            Specialty spec = citaObj.has("specialty") ? Specialty.valueOf(citaObj.getString("specialty")) : null;
+                            Specialty spec = citaObj.has("specialty") ? mapSpecialty(citaObj.getString("specialty")) : null;
                             Doctor doctorAsignado = null;
                             if (citaObj.has("doctorId")) {
                                 long doctorId = citaObj.getLong("doctorId");
@@ -173,7 +173,7 @@ public class JsonManager {
                         }
                     }
 
-                    // NUEVO: Cargar Hospitalizaciones
+                    // Cargar Hospitalizaciones
                     if (obj.has("hospitalizations")) {
                         JSONArray hospJson = obj.getJSONArray("hospitalizations");
                         for (int k = 0; k < hospJson.length(); k++) {
@@ -206,5 +206,24 @@ public class JsonManager {
         }
         
         return listaRecuperada;
+    }
+
+    private static Specialty mapSpecialty(String raw) {
+        switch (raw.toUpperCase()) {
+            case "GENERAL_MEDICINE":          return Specialty.GENERAL_MEDICINE;
+            case "CARDIOLOGY":                return Specialty.CARDIOLOGY;
+            case "PEDIATRICS":                return Specialty.PEDIATRICS;
+            case "NEUROLOGY":                 return Specialty.NEUROLOGY;
+            case "TRAUMATOLOGY_ORTHOPEDICS":
+            case "ORTHOPEDICS":               return Specialty.TRAUMATOLOGY_ORTHOPEDICS;
+            case "GYNECOLOGY_OBSTETRICS":
+            case "GYNECOLOGY":                return Specialty.GYNECOLOGY_OBSTETRICS;
+            case "DERMATOLOGY":               return Specialty.DERMATOLOGY;
+            case "PSYCHIATRY":                return Specialty.PSYCHIATRY;
+            case "ONCOLOGY":                  return Specialty.ONCOLOGY;
+            case "OPHTHALMOLOGY":             return Specialty.OPHTHALMOLOGY;
+            case "INTERNAL_MEDICINE":         return Specialty.INTERNAL_MEDICINE;
+            default:                          return Specialty.GENERAL_MEDICINE;
+        }
     }
 }

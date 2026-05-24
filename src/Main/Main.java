@@ -1,6 +1,8 @@
-package controller;
+package Main;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import controller.AuthController;
+import controller.RegisterController;
 import view.LoginView;
 import javax.swing.UIManager;
 

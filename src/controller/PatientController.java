@@ -11,7 +11,6 @@ import javax.swing.JOptionPane;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 
 public class PatientController implements ActionListener {
@@ -19,6 +18,8 @@ public class PatientController implements ActionListener {
     private PatientView view;
     private Patient pacienteLogueado;
     private boolean isAdmin;
+
+    private final AppointmentController appointmentController = new AppointmentController();
 
     public PatientController(PatientView view, Patient pacienteLogueado) {
         this(view, pacienteLogueado, false);
@@ -34,7 +35,7 @@ public class PatientController implements ActionListener {
         cargarDatosPacienteEnVista();
         cargarDoctoresEnCombo(); 
         cargarHistorialCitas();
-        cargarTiposDeHabitacion(); // Se inyectan las opciones de habitación
+        cargarTiposDeHabitacion(); 
         this.view.setVisible(true);
     }
 
@@ -63,7 +64,7 @@ public class PatientController implements ActionListener {
         }
     }
 
-    // CORRECCIÓN RÚBRICA: Ordenamiento Descendente y Refresco en tiempo real
+    // Ordenamiento Descendente y Refresco en tiempo real
     private void cargarHistorialCitas() {
         // 1. Refrescar al paciente desde el JSON para asegurar que la vista esté sincronizada
         for (User u : JsonManager.cargarUsuarios()) {
@@ -124,7 +125,7 @@ public class PatientController implements ActionListener {
         for (Specialty s : Specialty.values()) view.getCmbSelection().addItem(s.name());
     }
 
-    // NUEVO MÉTODO: Cargar tipos de habitación
+    // Cargar tipos de habitación
     private void cargarTiposDeHabitacion() {
         view.getCmbRoomType().removeAllItems();
         view.getCmbRoomType().addItem("Select one");
@@ -257,7 +258,7 @@ public class PatientController implements ActionListener {
             String nuevoId = String.format("H-%d-%04d", pacienteLogueado.getId(), numHosp);
             Hospitalization nuevaHosp = new Hospitalization(nuevoId, pacienteLogueado, doctorAsignado, admissionDate, reason, roomType, obs);
             
-            // REGLA DE NEGOCIO: Iniciar siempre en REQUESTED
+            // Iniciar siempre en REQUESTED
             nuevaHosp.setStatus(HospitalizationStatus.REQUESTED); 
             
             ArrayList<User> usuarios = JsonManager.cargarUsuarios();
@@ -282,23 +283,14 @@ public class PatientController implements ActionListener {
             return;
         }
 
-        ArrayList<User> usuarios = JsonManager.cargarUsuarios();
-        for (User u : usuarios) {
-            if (u.getId() == pacienteLogueado.getId()) {
-                for (Appointment a : ((Patient) u).getAppointments()) {
-                    if (a.getId().equals(idSeleccionado)) {
-                        if (a.getStatus() == AppointmentStatus.COMPLETED) {
-                            JOptionPane.showMessageDialog(view, "No se puede cancelar una cita completada.", "Error", JOptionPane.ERROR_MESSAGE);
-                            return;
-                        }
-                        a.setStatus(AppointmentStatus.CANCELED);
-                        JsonManager.guardarUsuarios(usuarios);
-                        JOptionPane.showMessageDialog(view, "Cita cancelada exitosamente.");
-                        cargarHistorialCitas();
-                        return;
-                    }
-                }
-            }
+        // Delegar al AppointmentController — SRP: cancelar es lógica de citas, no de paciente
+        Response r = appointmentController.cancelarCita(idSeleccionado, pacienteLogueado.getId());
+
+        if (r.getStatusCode() == 200) {
+            JOptionPane.showMessageDialog(view, r.getMessage());
+            cargarHistorialCitas();
+        } else {
+            JOptionPane.showMessageDialog(view, r.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -321,85 +313,23 @@ public class PatientController implements ActionListener {
         }
     }
 
-    // CORRECCIÓN RÚBRICA: Asignación por disponibilidad
+    // Asignación por disponibilidad
     public Response solicitarCitaLogica(String dateStr, String timeStr, String reason, String typeStr, String selection) {
         if (dateStr.isEmpty() || timeStr.isEmpty() || reason.isEmpty() || selection == null || selection.equals("Select one")) {
             return new Response(400, "Por favor complete todos los campos.");
         }
 
-        if (!timeStr.matches("([01]\\d|2[0-3]):(00|15|30|45)")) {
-            return new Response(400, "La hora debe seguir formato de 24h (hh:mm) y minutos en cuartos (00, 15, 30, 45).");
+        boolean isRemote = typeStr.equals("Remote");
+
+        // Delegar al AppointmentController según el tipo de selección
+        // SRP: PatientController no conoce la lógica de disponibilidad de doctores
+        if (view.getRdoDoctor().isSelected()) {
+            return appointmentController.solicitarCitaPorDoctor(
+                    pacienteLogueado.getId(), selection, dateStr, timeStr, reason, isRemote);
+        } else {
+            return appointmentController.solicitarCitaPorEspecialidad(
+                    pacienteLogueado.getId(), selection, dateStr, timeStr, reason, isRemote);
         }
-
-        try {
-            LocalDateTime ldt = LocalDateTime.parse(dateStr + "T" + timeStr);
-            ArrayList<User> usuarios = JsonManager.cargarUsuarios();
-            Doctor doctorSeleccionado = null;
-            Specialty specSeleccionada = null;
-
-            if (view.getRdoDoctor().isSelected()) {
-                for (User u : usuarios) {
-                    if (u instanceof Doctor) {
-                        Doctor d = (Doctor) u;
-                        String infoDoctor = d.getFirstname() + " " + d.getLastname() + " - " + d.getSpecialty().name();
-                        if (infoDoctor.equals(selection)) {
-                            if (!isDoctorAvailable(d, ldt, usuarios)) {
-                                return new Response(400, "El doctor seleccionado ya tiene una cita asignada en ese horario.");
-                            }
-                            doctorSeleccionado = d;
-                            specSeleccionada = d.getSpecialty();
-                            break;
-                        }
-                    }
-                }
-            } else {
-                specSeleccionada = Specialty.valueOf(selection.toUpperCase().replace(" ", "_").replace("&", "AND"));
-                for (User u : usuarios) {
-                    if (u instanceof Doctor && ((Doctor) u).getSpecialty() == specSeleccionada) {
-                        if (isDoctorAvailable((Doctor) u, ldt, usuarios)) {
-                            doctorSeleccionado = (Doctor) u;
-                            break;
-                        }
-                    }
-                }
-                if (doctorSeleccionado == null) {
-                    return new Response(400, "No hay doctores disponibles para esta especialidad en el horario solicitado.");
-                }
-            }
-
-            int numCitas = (pacienteLogueado.getAppointments() != null) ? pacienteLogueado.getAppointments().size() : 0;
-            String nuevoIdCita = String.format("A-%d-%04d", pacienteLogueado.getId(), numCitas);
-            Appointment nuevaCita = new Appointment(nuevoIdCita, pacienteLogueado, doctorSeleccionado, specSeleccionada, ldt, reason, typeStr.equals("Remote"));
-
-            for (User u : usuarios) {
-                if (u.getId() == pacienteLogueado.getId()) {
-                    ((Patient) u).getAppointments().add(nuevaCita);
-                    break;
-                }
-            }
-            
-            JsonManager.guardarUsuarios(usuarios);
-            return new Response(200, "Cita solicitada exitosamente.");
-
-        } catch (java.time.format.DateTimeParseException e) {
-            return new Response(400, "Error: Asegúrate que el formato de fecha sea YYYY-MM-DD.");
-        }
-    }
-
-    // Helpers de disponibilidad
-    private boolean isDoctorAvailable(Doctor doctor, LocalDateTime ldt, ArrayList<User> usuarios) {
-        for (User u : usuarios) {
-            if (u instanceof Patient && ((Patient) u).getAppointments() != null) {
-                for (Appointment a : ((Patient) u).getAppointments()) {
-                    if (a.getDoctor() != null && a.getDoctor().getId() == doctor.getId()) {
-                        if (a.getDatetime().equals(ldt) && a.getStatus() != AppointmentStatus.CANCELED) {
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
-        return true;
     }
 
     private void handleLogout() { view.dispose(); new AuthController(new LoginView()); }
