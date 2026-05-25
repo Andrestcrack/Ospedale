@@ -3,8 +3,13 @@ package controller;
 import model.*;
 import persistence.JsonManager;
 import response.Response;
+import observer.ModelEvent;
+import observer.ModelEventBus;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.Duration;
 import java.util.ArrayList;
 
 public class AppointmentController {
@@ -49,6 +54,9 @@ public class AppointmentController {
 
             JsonManager.guardarUsuarios(usuarios);
 
+            // Patrón Observador: notificar a todos los observers que hubo un cambio
+            ModelEventBus.getInstance().publish(ModelEvent.APPOINTMENT_CHANGED);
+
             return new Response(200, "Cita solicitada.");
 
         } catch (Exception e) {
@@ -92,6 +100,9 @@ public class AppointmentController {
 
                         JsonManager.guardarUsuarios(usuarios);
 
+                        // Patrón Observador
+                        ModelEventBus.getInstance().publish(ModelEvent.APPOINTMENT_CHANGED);
+
                         return new Response(200, "Cita aceptada.");
                     }
 
@@ -110,6 +121,9 @@ public class AppointmentController {
                         a.setStatus(AppointmentStatus.CANCELED);
 
                         JsonManager.guardarUsuarios(usuarios);
+
+                        // Patrón Observador
+                        ModelEventBus.getInstance().publish(ModelEvent.APPOINTMENT_CHANGED);
 
                         return new Response(200, "Cita cancelada.");
                     }
@@ -135,6 +149,9 @@ public class AppointmentController {
 
                         JsonManager.guardarUsuarios(usuarios);
 
+                        // Patrón Observador
+                        ModelEventBus.getInstance().publish(ModelEvent.APPOINTMENT_CHANGED);
+
                         return new Response(200, "Cita completada.");
                     }
 
@@ -143,11 +160,140 @@ public class AppointmentController {
 
     public Response reagendarCita(String id, long doctorId, String newTime, String reason) {
 
-        return new Response(200, "Cita reprogramada.");
+        // Validar formato de hora con cuartos de hora
+        if (newTime == null || !newTime.matches("([01]\\d|2[0-3]):(00|15|30|45)")) {
+            return new Response(400, "Hora inválida. Use formato hh:mm con minutos en (00, 15, 30, 45).");
+        }
+
+        ArrayList<User> usuarios = JsonManager.cargarUsuarios();
+
+        for (User u : usuarios) {
+            if (u instanceof Patient) {
+                for (Appointment a : ((Patient) u).getAppointments()) {
+                    if (a.getId().equals(id)) {
+
+                        // Verificar que el doctor sea el responsable
+                        if (a.getDoctor() == null || a.getDoctor().getId() != doctorId) {
+                            return new Response(400, "Este doctor no es el responsable de la cita.");
+                        }
+
+                        // Verificar que la cita no esté completada o cancelada
+                        if (a.getStatus() == AppointmentStatus.COMPLETED
+                                || a.getStatus() == AppointmentStatus.CANCELED) {
+                            return new Response(400, "No se puede reagendar una cita COMPLETED o CANCELED.");
+                        }
+
+                        // Conservar el mismo día, solo cambiar la hora
+                        java.time.LocalDate fechaOriginal = a.getDatetime().toLocalDate();
+                        java.time.LocalDateTime nuevaFechaHora;
+                        try {
+                            nuevaFechaHora = java.time.LocalDateTime.of(
+                                    fechaOriginal,
+                                    java.time.LocalTime.parse(newTime)
+                            );
+                        } catch (Exception e) {
+                            return new Response(400, "Error al parsear la nueva hora.");
+                        }
+
+                        // Verificar disponibilidad en el nuevo horario,
+                        // excluyendo la propia cita que se está reagendando
+                        if (!isDoctorAvailableExcluding(a.getDoctor(), nuevaFechaHora, id, usuarios)) {
+                            return new Response(400, "El doctor ya tiene una cita en ese nuevo horario.");
+                        }
+
+                        // Aplicar cambios
+                        a.setDatetime(nuevaFechaHora);
+
+                        // Añadir la razón del reagendamiento a la razón original
+                        if (reason != null && !reason.isBlank()) {
+                            a.setReason(a.getReason() + " | Reagendamiento: " + reason);
+                        }
+
+                        JsonManager.guardarUsuarios(usuarios);
+
+                        // Patrón Observador
+                        ModelEventBus.getInstance().publish(ModelEvent.APPOINTMENT_CHANGED);
+
+                        return new Response(200, "Cita reagendada para las " + newTime + ".");
+                    }
+                }
+            }
+        }
+
+        return new Response(404, "Cita no encontrada.");
+    }
+
+    private boolean isDoctorAvailableExcluding(Doctor doctor, java.time.LocalDateTime ldt,
+                                               String excludeId, ArrayList<User> usuarios) {
+        final int DURACION_MINUTOS = 15;
+
+        for (User u : usuarios) {
+            if (u instanceof Patient && ((Patient) u).getAppointments() != null) {
+                for (Appointment a : ((Patient) u).getAppointments()) {
+                    // Ignorar la cita que se está reagendando
+                    if (excludeId != null && a.getId().equals(excludeId)) continue;
+                    // Ignorar citas de otros doctores
+                    if (a.getDoctor() == null || a.getDoctor().getId() != doctor.getId()) continue;
+                    // Ignorar citas canceladas
+                    if (a.getStatus() == AppointmentStatus.CANCELED) continue;
+
+                    long diffMinutos = Math.abs(
+                        java.time.Duration.between(a.getDatetime(), ldt).toMinutes()
+                    );
+                    if (diffMinutos < DURACION_MINUTOS) return false;
+                }
+            }
+        }
+        return true;
     }
 
     public Response prescribirMedicamentos(String id, long doctorId, ArrayList<Prescription> meds) {
 
-        return new Response(200, "Medicamentos agregados.");
+        if (id == null || id.equals("Select one")) {
+            return new Response(400, "Seleccione una cita válida.");
+        }
+        if (meds == null || meds.isEmpty()) {
+            return new Response(400, "Debe agregar al menos un medicamento.");
+        }
+
+        ArrayList<User> usuarios = JsonManager.cargarUsuarios();
+
+        for (User u : usuarios) {
+            if (u instanceof Patient) {
+                for (Appointment a : ((Patient) u).getAppointments()) {
+                    if (a.getId().equals(id)) {
+
+                        // Verificar que el doctor sea el responsable
+                        if (a.getDoctor() == null || a.getDoctor().getId() != doctorId) {
+                            return new Response(400, "Este doctor no es el responsable de la cita.");
+                        }
+
+                        // Solo se puede prescribir en citas PENDING
+                        if (a.getStatus() != AppointmentStatus.PENDING) {
+                            return new Response(400,
+                                "Solo se pueden prescribir medicamentos en citas con estado PENDING.");
+                        }
+
+                        // Inicializar lista si es null (defensa ante datos legacy del JSON)
+                        if (a.getPrescriptions() == null) {
+                            a.setPrescriptions(new ArrayList<>());
+                        }
+
+                        // Añadir todas las prescripciones una sola vez
+                        a.getPrescriptions().addAll(meds);
+
+                        JsonManager.guardarUsuarios(usuarios);
+
+                        // Patrón Observador
+                        ModelEventBus.getInstance().publish(ModelEvent.APPOINTMENT_CHANGED);
+
+                        return new Response(200,
+                            "Medicamentos prescritos exitosamente (" + meds.size() + " prescripción(es)).");
+                    }
+                }
+            }
+        }
+
+        return new Response(404, "Cita no encontrada.");
     }
 }

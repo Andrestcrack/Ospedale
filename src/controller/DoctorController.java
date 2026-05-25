@@ -6,6 +6,9 @@ import view.LoginView;
 import model.*;
 import persistence.JsonManager;
 import response.Response;
+import observer.Observer;
+import observer.ModelEvent;
+import observer.ModelEventBus;
 
 import javax.swing.JOptionPane;
 import javax.swing.table.DefaultTableModel;
@@ -14,7 +17,7 @@ import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.time.LocalDate;
 
-public class DoctorController implements ActionListener {
+public class DoctorController implements ActionListener, Observer {
 
     private DoctorView view;
     private Doctor doctorLogueado;
@@ -33,7 +36,21 @@ public class DoctorController implements ActionListener {
         initListeners();
         cargarDatosDoctorEnVista();
         cargarCitasYHospitalizaciones();
+
+        // Patrón Observador: registrarse para recibir notificaciones automáticas.
+        // Cuando AppointmentController o HospitalizationController publiquen un evento,
+        // la tabla del doctor se actualizará sola.
+        ModelEventBus.getInstance().subscribe(this);
+
         this.view.setVisible(true);
+    }
+
+    @Override
+    public void onModelChanged(ModelEvent event) {
+        if (event == ModelEvent.APPOINTMENT_CHANGED
+                || event == ModelEvent.HOSPITALIZATION_CHANGED) {
+            cargarCitasYHospitalizaciones();
+        }
     }
 
     private void initListeners() {
@@ -228,7 +245,7 @@ public class DoctorController implements ActionListener {
             if (u instanceof Patient && String.valueOf(u.getId()).equals(idSeleccionado)) {
                 Patient p = (Patient) u;
                 if (p.getAppointments() != null) {
-                    // Se ordenan descendentemente como exige la rúbrica
+                    // Se ordenan descendentemente 
                     ArrayList<Appointment> citasPaciente = new ArrayList<>(p.getAppointments());
                     citasPaciente.sort((a, b) -> b.getDatetime().compareTo(a.getDatetime()));
 
@@ -256,7 +273,7 @@ public class DoctorController implements ActionListener {
         Response r = aceptarCitaLogica(idSeleccionado);
         if (r.getStatusCode() == 200) {
             JOptionPane.showMessageDialog(view, r.getMessage());
-            cargarCitasYHospitalizaciones();
+            // La tabla se actualiza automáticamente vía patrón observador
         } else JOptionPane.showMessageDialog(view, r.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
     }
 
@@ -272,7 +289,7 @@ public class DoctorController implements ActionListener {
         Response r = completarCitaLogica(idSeleccionado);
         if (r.getStatusCode() == 200) {
             JOptionPane.showMessageDialog(view, r.getMessage());
-            cargarCitasYHospitalizaciones();
+            // La tabla se actualiza automáticamente vía patrón observador
         } else JOptionPane.showMessageDialog(view, r.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
     }
 
@@ -283,7 +300,7 @@ public class DoctorController implements ActionListener {
         String observations = view.getTxaCompleteObservations().getText().trim();
         String treatment = view.getTxaRecommendedTreatment().getText().trim();
         String followUp = view.getTxaFollowUpIndication().getText().trim();
-        // Delegar al AppointmentController — corrige el bug original que ponía CANCELED
+        // Delegar al AppointmentController 
         return appointmentController.completarCita(id, doctorLogueado.getId(),
                 diagnosis, observations, treatment, followUp);
     }
@@ -406,6 +423,17 @@ public class DoctorController implements ActionListener {
     return hospitalizationController.hospitalizacionDirecta(idCita, doctorLogueado.getId(), dateStr, duration, reason, obs);
 }
 
-    private void handleLogout() { view.dispose(); new AuthController(new LoginView()); }
-    private void handleBack() { if (isAdmin) { view.dispose(); new AdminController(new AdminView()); } }
+    private void handleLogout() {
+        ModelEventBus.getInstance().unsubscribe(this);
+        view.dispose();
+        new AuthController(new LoginView());
+    }
+
+    private void handleBack() {
+        if (isAdmin) {
+            ModelEventBus.getInstance().unsubscribe(this);
+            view.dispose();
+            new AdminController(new AdminView());
+        }
+    }
 }

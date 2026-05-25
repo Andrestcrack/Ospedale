@@ -3,6 +3,8 @@ package controller;
 import model.*;
 import persistence.JsonManager;
 import response.Response;
+import observer.ModelEvent;
+import observer.ModelEventBus;
 
 import java.util.ArrayList;
 import java.time.LocalDate;
@@ -21,6 +23,9 @@ public class HospitalizationController {
                         h.setStatus(HospitalizationStatus.ONGOING);
 
                         JsonManager.guardarUsuarios(usuarios);
+
+                        // Patrón Observador
+                        ModelEventBus.getInstance().publish(ModelEvent.HOSPITALIZATION_CHANGED);
 
                         return new Response(200, "Hospitalización aprobada.");
                     }
@@ -43,6 +48,9 @@ public class HospitalizationController {
                         h.setStatus(HospitalizationStatus.CANCELED);
 
                         JsonManager.guardarUsuarios(usuarios);
+
+                        // Patrón Observador
+                        ModelEventBus.getInstance().publish(ModelEvent.HOSPITALIZATION_CHANGED);
 
                         return new Response(200, "Hospitalización cancelada.");
                     }
@@ -101,6 +109,10 @@ public class HospitalizationController {
                             p.getHospitalizations().add(nuevaHosp);
 
                             JsonManager.guardarUsuarios(usuarios);
+
+                            // Patrón Observador: notifica cambio de cita Y hospitalización
+                            ModelEventBus.getInstance().publish(ModelEvent.APPOINTMENT_CHANGED);
+                            ModelEventBus.getInstance().publish(ModelEvent.HOSPITALIZATION_CHANGED);
 
                             return new Response(200, "Hospitalizado. Cita COMPLETED.");
                         }

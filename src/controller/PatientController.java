@@ -6,6 +6,9 @@ import view.LoginView;
 import model.*;
 import persistence.JsonManager;
 import response.Response;
+import observer.Observer;
+import observer.ModelEvent;
+import observer.ModelEventBus;
 
 import javax.swing.JOptionPane;
 import java.awt.event.ActionEvent;
@@ -13,7 +16,7 @@ import java.awt.event.ActionListener;
 import java.time.LocalDate;
 import java.util.ArrayList;
 
-public class PatientController implements ActionListener {
+public class PatientController implements ActionListener, Observer {
 
     private PatientView view;
     private Patient pacienteLogueado;
@@ -35,8 +38,23 @@ public class PatientController implements ActionListener {
         cargarDatosPacienteEnVista();
         cargarDoctoresEnCombo(); 
         cargarHistorialCitas();
-        cargarTiposDeHabitacion(); 
+        cargarTiposDeHabitacion();
+
+        // Patrón Observador: registrarse para recibir notificaciones automáticas
+        // Cuando AppointmentController o HospitalizationController publiquen un evento,
+        // este controlador actualizará la tabla automáticamente.
+        ModelEventBus.getInstance().subscribe(this);
+
         this.view.setVisible(true);
+    }
+
+    @Override
+    public void onModelChanged(ModelEvent event) {
+        // Solo nos interesan los cambios de citas (las hospitalizaciones
+        // no tienen tabla propia en la vista del paciente)
+        if (event == ModelEvent.APPOINTMENT_CHANGED) {
+            cargarHistorialCitas();
+        }
     }
 
     private void initListeners() {
@@ -283,12 +301,11 @@ public class PatientController implements ActionListener {
             return;
         }
 
-        // Delegar al AppointmentController — SRP: cancelar es lógica de citas, no de paciente
         Response r = appointmentController.cancelarCita(idSeleccionado, pacienteLogueado.getId());
 
         if (r.getStatusCode() == 200) {
             JOptionPane.showMessageDialog(view, r.getMessage());
-            cargarHistorialCitas();
+            // La tabla se actualiza automáticamente vía patrón observador
         } else {
             JOptionPane.showMessageDialog(view, r.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -304,7 +321,7 @@ public class PatientController implements ActionListener {
         Response r = solicitarCitaLogica(dateStr, timeStr, reason, typeStr, selection);
         if (r.getStatusCode() == 200) {
             JOptionPane.showMessageDialog(view, r.getMessage());
-            cargarHistorialCitas();
+            // La tabla se actualiza automáticamente vía patrón observador
             view.getTxtAppointmentDate().setText("");
             view.getTxtAppointmentTime().setText("");
             view.getTxaAppointmentReason().setText("");
@@ -332,6 +349,17 @@ public class PatientController implements ActionListener {
         }
     }
 
-    private void handleLogout() { view.dispose(); new AuthController(new LoginView()); }
-    private void handleBack() { if (isAdmin) { view.dispose(); new AdminController(new AdminView()); } }
+    private void handleLogout() {
+        ModelEventBus.getInstance().unsubscribe(this);
+        view.dispose();
+        new AuthController(new LoginView());
+    }
+
+    private void handleBack() {
+        if (isAdmin) {
+            ModelEventBus.getInstance().unsubscribe(this);
+            view.dispose();
+            new AdminController(new AdminView());
+        }
+    }
 }
