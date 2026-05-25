@@ -33,7 +33,7 @@ public class PatientController implements ActionListener, Observer {
         this.pacienteLogueado = pacienteLogueado;
         this.isAdmin = isAdmin;
         
-        this.view.getBtnBack().setEnabled(isAdmin);
+        this.view.getBtnBack().setVisible(isAdmin);
         initListeners();
         cargarDatosPacienteEnVista();
         cargarDoctoresEnCombo(); 

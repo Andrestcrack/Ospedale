@@ -16,6 +16,7 @@ public class DoctorView extends javax.swing.JFrame {
     public DoctorView() {
         initComponents();
         this.setBackground(new java.awt.Color(0, 0, 0, 0));
+        
     }
 
     /**
@@ -1154,6 +1155,7 @@ public class DoctorView extends javax.swing.JFrame {
     public javax.swing.JButton getBtnBack() { return btnBack; }
     public javax.swing.JButton getBtnLogout() { return jButton12; }
     public javax.swing.JButton getBtnSearch() { return BtnSearch; }
+    public javax.swing.JButton getBtnClose() {return btnClose;}
 
     // Gestión de Citas
     public javax.swing.JButton getBtnAcceptAppointment() { return btnAcceptAppointment; }

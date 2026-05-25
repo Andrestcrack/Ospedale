@@ -32,7 +32,7 @@ public class DoctorController implements ActionListener, Observer {
         this.doctorLogueado = doctorLogueado;
         this.isAdmin = isAdmin;
         
-        this.view.getBtnBack().setEnabled(isAdmin);
+        this.view.getBtnBack().setVisible(isAdmin);
         initListeners();
         cargarDatosDoctorEnVista();
         cargarCitasYHospitalizaciones();
@@ -68,14 +68,22 @@ public class DoctorController implements ActionListener, Observer {
         this.view.getBtnGenerateHospitalization().addActionListener(this);
         this.view.getBtnCancelHospitalization().addActionListener(this);
         
+        this.view.getBtnClose().addActionListener(this);
+        
         // Listener para el botón de buscar historial
         this.view.getBtnSearch().addActionListener(this);
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
+        
+        if (e.getSource() == view.getBtnClose()) {
+        view.dispose();
+        return;
+    }
+        
         if (e.getSource() == view.getBtnLogout()) handleLogout();
-        else if (e.getSource() == view.getBtnBack()) handleBack();
+        else if (e.getSource() == view.getBtnBack()) handleBack();       
         else if (e.getSource() == view.getBtnUpdateInfo()) handleUpdateInfo();
         else if (e.getSource() == view.getBtnAcceptAppointment()) handleAcceptAppointment();
         else if (e.getSource() == view.getBtnCompleteAppointment()) handleCompleteAppointment();
